@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="author_email" content="jozef.javorsky.dodo@gmail.com" />
+    <meta
+      name="author_github"
+      content="https://github.com/jozef-javorsky-dodo"
+    />
+    <meta
+      name="description"
+      content="An interactive, client-side Galton Board (Bean Machine) simulation built as a Single Page Application using React and Tailwind CSS via CDN. No build process required."
+    />
+    <title>📊 Galton Board Simulation ⚻</title>
+    <base href="/" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      sizes="16x16"
+      href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAABiSURBVDhP7Y5BCsAwCAR9t88u3lPbSUSs5NZblkXEzWhkmBWLyLi8NJFb1LQ4gDJ3P0ArgKIDhHhKULAd4Fn0oS2gfwDEjCbw9oH1AL8HoM93JvDdnWu+swCe5t25cgfM7AZUzdP4r/YJ1gAAAABJRU5ErkJggg=="
+    />
+
+    <script
+      src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"
+      crossorigin
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"
+      crossorigin
+    ></script>
+    <script src="https://unpkg.com/@babel/standalone@7.18.13/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              "sim-bg": "#1a202c",
+              "board-bg": "#2d3748",
+              "panel-bg": "#4a5568",
+              "peg-color": "#a0aec0",
+              "ball-color": "#facc15", // Slightly richer yellow
+              "hist-left": "#60a5fa", // Tailwind blue-400
+              "hist-right": "#4ade80", // Tailwind green-400
+              "text-primary": "#e2e8f0",
+              "text-secondary": "#a0aec0",
+              accent: "#60a5fa", // Tailwind blue-400
+              "button-start": "#22c55e", // Tailwind green-500
+              "button-start-hover": "#16a34a", // Tailwind green-600
+              "button-reset": "#ef4444", // Tailwind red-500
+              "button-reset-hover": "#dc2626", // Tailwind red-600
+            },
+            boxShadow: {
+              "inner-lg": "inset 0 4px 8px 0 rgba(0, 0, 0, 0.2)",
+            },
+            fontFamily: {
+              sans: ["Roboto", "sans-serif"],
+            },
+          },
+        },
+        plugins: [
+          tailwind.plugin(function ({ addBase, theme }) {
+            addBase({
+              'input[type="range"]': {
+                "@apply h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent focus:ring-offset-panel-bg":
+                  {},
+              },
+              'input[type="range"]::-webkit-slider-thumb': {
+                "@apply w-4 h-4 bg-accent rounded-full appearance-none cursor-pointer transition-transform duration-150 ease-in-out hover:scale-110":
+                  {},
+              },
+              'input[type="range"]::-moz-range-thumb': {
+                "@apply w-4 h-4 bg-accent rounded-full cursor-pointer border-none transition-transform duration-150 ease-in-out hover:scale-110":
+                  {},
+              },
+            });
+          }),
+        ],
+      };
+    </script>
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        @apply bg-sim-bg text-text-primary font-sans antialiased;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overscroll-behavior: none;
+      }
+      canvas {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        background-color: theme("colors.board-bg");
+        border-radius: theme("borderRadius.lg");
+      }
+      *:focus-visible {
+        @apply outline-none ring-2 ring-offset-2 ring-accent ring-offset-sim-bg;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: theme("colors.gray.800");
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: theme("colors.gray.600");
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: theme("colors.gray.500");
+      }
+      .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: theme("colors.gray.600") theme("colors.gray.800");
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div class="text-center p-8 bg-red-800 text-white font-bold">
+        JavaScript is required to run this Galton Board simulation. Please
+        enable it in your browser settings.
+      </div>
+    </noscript>
+    <div
+      id="root"
+      role="application"
+      aria-label="Galton Board Simulation Application"
+    >
+      <div class="flex justify-center items-center min-h-screen">
+        <p class="text-xl text-text-secondary animate-pulse">
+          Loading Simulation...
+        </p>
+      </div>
+    </div>
+
+    <script type="text/babel" data-presets="react">
+      const { StrictMode, useState, useEffect, useRef, useCallback, useMemo } =
+        React;
+
+      const PEG_RADIUS = 3.5;
+      const BALL_RADIUS = 3;
+      const GRAVITY = 0.08;
+      const WALL_DAMPING_FACTOR = 0.6;
+      const PEG_RESTITUTION_FACTOR = 0.45;
+      const PEG_TANGENTIAL_DAMPING = 0.95;
+      const INITIAL_X_VARIANCE = 0.5;
+      const INITIAL_Y_VELOCITY = 0.5;
+      const INITIAL_Y_OFFSET_FACTOR = 2.5;
+      const MAX_SIMULTANEOUS_BALLS = 200;
+      const HIST_AREA_HEIGHT_RATIO = 0.25;
+      const MIN_VELOCITY_THRESHOLD_SQ = 0.005 * 0.005;
+      const BASE_SUBSTEPS = 2;
+      const MAX_SUBSTEPS = 6;
+      const MAX_DELTA_TIME = 1 / 30;
+
+      const calculatePegLayout = (rows, width, boardHeight, initialYOffset) => {
+        const pegs = [];
+        if (rows <= 0) return pegs;
+        const availableHeight = boardHeight - initialYOffset * 2;
+        const ySpacing = availableHeight / Math.max(1, rows - 1);
+        const effectiveRowsForXSpacing = Math.max(rows, 5);
+        const xSpacing = width / (effectiveRowsForXSpacing + 1);
+
+        for (let row = 0; row < rows; row++) {
+          const numPegsInRow = row + 1;
+          const y = initialYOffset + ySpacing * row;
+          const totalWidthForRow = (numPegsInRow - 1) * xSpacing;
+          const startX = (width - totalWidthForRow) / 2;
+
+          for (let col = 0; col < numPegsInRow; col++) {
+            const x = startX + col * xSpacing;
+            pegs.push({ x, y, id: `peg-${row}-${col}` });
+          }
+        }
+        return pegs;
+      };
+
+      const ConfigPanel = React.memo(
+        ({
+          config,
+          onConfigChange,
+          onStart,
+          onReset,
+          isRunning,
+          ballsDropped,
+          totalBalls,
+        }) => {
+          const handleInputChange = useCallback(
+            (event) => {
+              const { name, value, type } = event.target;
+              onConfigChange(
+                name,
+                type === "number" || type === "range" ? Number(value) : value
+              );
+            },
+            [onConfigChange]
+          );
+
+          const progressPercent =
+            totalBalls > 0 ? Math.round((ballsDropped / totalBalls) * 100) : 0;
+
+          return (
+            <aside className="w-full md:w-64 lg:w-72 bg-panel-bg p-4 space-y-5 order-first md:order-last flex-shrink-0 shadow-lg rounded-lg md:max-h-[calc(100vh-100px)] md:overflow-y-auto custom-scrollbar">
+              <h2 className="text-xl font-semibold text-center mb-4 text-text-primary">
+                Configuration
+              </h2>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="numRows"
+                  className="flex justify-between text-sm font-medium text-text-secondary"
+                >
+                  <span>Peg Rows</span>
+                  <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs">
+                    {config.numRows}
+                  </span>
+                </label>
+                <input
+                  type="range"
+                  id="numRows"
+                  name="numRows"
+                  min="3"
+                  max="25"
+                  step="1"
+                  value={config.numRows}
+                  onChange={handleInputChange}
+                  aria-label="Number of peg rows"
+                  disabled={isRunning}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="numBalls"
+                  className="flex justify-between text-sm font-medium text-text-secondary"
+                >
+                  <span>Number of Balls</span>
+                  <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs">
+                    {config.numBalls.toLocaleString()}
+                  </span>
+                </label>
+                <input
+                  type="range"
+                  id="numBalls"
+                  name="numBalls"
+                  min="100"
+                  max="15000"
+                  step="100"
+                  value={config.numBalls}
+                  onChange={handleInputChange}
+                  aria-label="Number of balls"
+                  disabled={isRunning}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="simSpeed"
+                  className="flex justify-between text-sm font-medium text-text-secondary"
+                >
+                  <span>Simulation Speed</span>
+                  <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs">
+                    {config.simSpeed}x
+                  </span>
+                </label>
+                <input
+                  type="range"
+                  id="simSpeed"
+                  name="simSpeed"
+                  min="1"
+                  max="15"
+                  step="1"
+                  value={config.simSpeed}
+                  onChange={handleInputChange}
+                  aria-label="Simulation speed multiplier"
+                />
+              </div>
+
+              {isRunning && (
+                <div className="pt-2">
+                  <label className="block text-sm font-medium text-text-secondary mb-1 text-center">
+                    Progress
+                  </label>
+                  <div className="w-full bg-gray-600 rounded-full h-2.5 shadow-inner">
+                    <div
+                      className="bg-accent h-2.5 rounded-full transition-all duration-150 ease-linear"
+                      style={{ width: `${progressPercent}%` }}
+                      role="progressbar"
+                      aria-valuenow={progressPercent}
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    ></div>
+                  </div>
+                  <p className="text-xs text-center text-text-secondary mt-1">
+                    {ballsDropped.toLocaleString()} /{" "}
+                    {totalBalls.toLocaleString()} ({progressPercent}%)
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-4">
+                <button
+                  onClick={onStart}
+                  disabled={isRunning}
+                  className="w-full bg-button-start hover:bg-button-start-hover text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out focus-visible:ring-offset-panel-bg"
+                >
+                  {isRunning ? "Running..." : "Start"}
+                </button>
+                <button
+                  onClick={onReset}
+                  className="w-full bg-button-reset hover:bg-button-reset-hover text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out focus-visible:ring-offset-panel-bg"
+                >
+                  Reset
+                </button>
+              </div>
+            </aside>
+          );
+        }
+      );
+
+      const BoardCanvas = React.memo(
+        ({
+          balls,
+          bins,
+          pegLayout,
+          canvasSize,
+          histogramMaxHeight,
+          boardHeight,
+        }) => {
+          const canvasRef = useRef(null);
+          const dpr = useMemo(
+            () =>
+              (typeof window !== "undefined" ? window.devicePixelRatio : 1) ||
+              1,
+            []
+          );
+
+          useEffect(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+
+            const { width, height } = canvasSize;
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = "#2d3748";
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.fillStyle = "#a0aec0";
+            ctx.beginPath();
+            pegLayout.forEach((peg) => {
+              ctx.moveTo(peg.x + PEG_RADIUS, peg.y);
+              ctx.arc(peg.x, peg.y, PEG_RADIUS, 0, Math.PI * 2);
+            });
+            ctx.fill();
+
+            if (bins.length > 0) {
+              const maxBinCount = Math.max(1, ...bins);
+              const binWidth = width / bins.length;
+              const halfWidth = width / 2;
+              const histHeightScaled = histogramMaxHeight;
+              const leftColor = "#60a5fa";
+              const rightColor = "#4ade80";
+
+              ctx.lineWidth = 0.5;
+              ctx.strokeStyle = "#4a5568";
+
+              for (let index = 0; index < bins.length; index++) {
+                const count = bins[index];
+                if (count > 0) {
+                  const barHeight = Math.max(
+                    1,
+                    (count / maxBinCount) * histHeightScaled
+                  );
+                  const x = index * binWidth;
+                  const y = height - barHeight;
+                  const barCenter = x + binWidth / 2;
+                  ctx.fillStyle =
+                    barCenter < halfWidth ? leftColor : rightColor;
+                  ctx.fillRect(
+                    Math.floor(x),
+                    Math.floor(y),
+                    Math.ceil(binWidth),
+                    Math.ceil(barHeight)
+                  );
+                  ctx.strokeRect(
+                    Math.floor(x),
+                    Math.floor(y),
+                    Math.ceil(binWidth),
+                    Math.ceil(barHeight)
+                  );
+                }
+              }
+
+              ctx.strokeStyle = "#718096";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(0, boardHeight);
+              ctx.lineTo(width, boardHeight);
+              ctx.stroke();
+            }
+
+            ctx.fillStyle = "#facc15";
+            ctx.beginPath();
+            balls.forEach((ball) => {
+              if (ball.y < boardHeight - BALL_RADIUS) {
+                ctx.moveTo(ball.x + BALL_RADIUS, ball.y);
+                ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+              }
+            });
+            ctx.fill();
+          }, [
+            balls,
+            bins,
+            pegLayout,
+            canvasSize,
+            histogramMaxHeight,
+            boardHeight,
+            dpr,
+          ]);
+
+          return (
+            <canvas
+              ref={canvasRef}
+              className="shadow-inner-lg"
+              role="img"
+              aria-label="Galton Board Simulation Visualization"
+            />
+          );
+        }
+      );
+
+      function App() {
+        const [isClient, setIsClient] = useState(false);
+        const [config, setConfig] = useState({
+          numRows: 12,
+          numBalls: 2000,
+          simSpeed: 5,
+        });
+        const [ballsToRender, setBallsToRender] = useState([]);
+        const [bins, setBins] = useState(() =>
+          new Array(config.numRows + 1).fill(0)
+        );
+        const [isRunning, setIsRunning] = useState(false);
+        const [canvasSize, setCanvasSize] = useState({
+          width: 600,
+          height: 450,
+        });
+
+        const boardContainerRef = useRef(null);
+        const animationFrameRef = useRef(null);
+        const ballsDroppedRef = useRef(0);
+        const activeBallsRef = useRef([]);
+        const lastTimestampRef = useRef(0);
+
+        const histogramMaxHeight = useMemo(
+          () => canvasSize.height * HIST_AREA_HEIGHT_RATIO,
+          [canvasSize.height]
+        );
+        const boardHeight = useMemo(
+          () => canvasSize.height - histogramMaxHeight,
+          [canvasSize.height, histogramMaxHeight]
+        );
+        const initialYOffset = useMemo(
+          () => PEG_RADIUS * INITIAL_Y_OFFSET_FACTOR,
+          []
+        );
+        const pegLayout = useMemo(
+          () =>
+            calculatePegLayout(
+              config.numRows,
+              canvasSize.width,
+              boardHeight,
+              initialYOffset
+            ),
+          [config.numRows, canvasSize.width, boardHeight, initialYOffset]
+        );
+
+        useEffect(() => {
+          if (!isRunning) {
+            setBins(new Array(config.numRows + 1).fill(0));
+          }
+        }, [config.numRows, isRunning]);
+
+        const adjustCanvasSize = useCallback(() => {
+          if (boardContainerRef.current) {
+            const container = boardContainerRef.current;
+            const padding = 16;
+            const maxWidth = container.offsetWidth - padding;
+            const maxHeight = window.innerHeight * 0.9 - 120;
+            const aspectRatio = 4 / 3;
+
+            let newWidth = maxWidth;
+            let newHeight = newWidth / aspectRatio;
+
+            if (newHeight > maxHeight) {
+              newHeight = maxHeight;
+              newWidth = newHeight * aspectRatio;
+            }
+
+            newWidth = Math.max(300, Math.floor(newWidth));
+            newHeight = Math.max(225, Math.floor(newHeight));
+
+            if (
+              Math.abs(newWidth - canvasSize.width) > 1 ||
+              Math.abs(newHeight - canvasSize.height) > 1
+            ) {
+              setCanvasSize({ width: newWidth, height: newHeight });
+            }
+          }
+        }, [canvasSize.width, canvasSize.height]);
+
+        useEffect(() => {
+          setIsClient(true);
+          adjustCanvasSize();
+          window.addEventListener("resize", adjustCanvasSize);
+          return () => window.removeEventListener("resize", adjustCanvasSize);
+        }, [adjustCanvasSize]);
+
+        const handleConfigChange = useCallback(
+          (name, value) => {
+            if (isRunning) return;
+            setConfig((prev) => ({ ...prev, [name]: value }));
+            if (name === "numRows") {
+              setBins(new Array(Number(value) + 1).fill(0));
+            }
+          },
+          [isRunning]
+        );
+
+        const resetSimulation = useCallback(() => {
+          setIsRunning(false);
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          ballsDroppedRef.current = 0;
+          activeBallsRef.current = [];
+          setBallsToRender([]);
+          setBins(new Array(config.numRows + 1).fill(0));
+          lastTimestampRef.current = 0;
+        }, [config.numRows]);
+
+        const startSimulation = useCallback(() => {
+          if (isRunning) return;
+          resetSimulation();
+          setTimeout(() => {
+            setIsRunning(true);
+            lastTimestampRef.current = performance.now();
+            animationFrameRef.current = requestAnimationFrame(simulationStep);
+          }, 50);
+        }, [isRunning, resetSimulation]);
+
+        const simulationStep = useCallback(
+          (timestamp) => {
+            if (!isRunning) {
+              animationFrameRef.current = null;
+              return;
+            }
+
+            const deltaTime = Math.min(
+              MAX_DELTA_TIME,
+              (timestamp - lastTimestampRef.current) / 1000
+            );
+            lastTimestampRef.current = timestamp;
+
+            const effectiveSubsteps = Math.max(
+              1,
+              Math.min(
+                MAX_SUBSTEPS,
+                BASE_SUBSTEPS + Math.floor(config.simSpeed / 3)
+              )
+            );
+            const dt = deltaTime / effectiveSubsteps;
+
+            const binUpdates = new Array(bins.length).fill(0);
+
+            for (let step = 0; step < effectiveSubsteps; step++) {
+              const currentActiveBalls = activeBallsRef.current;
+              const nextActiveBalls = [];
+
+              if (step === 0) {
+                const canAddBall =
+                  currentActiveBalls.length < MAX_SIMULTANEOUS_BALLS;
+                if (ballsDroppedRef.current < config.numBalls && canAddBall) {
+                  const numToAddThisFrame = Math.min(
+                    Math.max(1, Math.floor(config.simSpeed * 0.8)),
+                    config.numBalls - ballsDroppedRef.current,
+                    MAX_SIMULTANEOUS_BALLS - currentActiveBalls.length
+                  );
+                  for (let i = 0; i < numToAddThisFrame; i++) {
+                    activeBallsRef.current.push({
+                      id: `ball-${ballsDroppedRef.current + i}`,
+                      x:
+                        canvasSize.width / 2 +
+                        (Math.random() - 0.5) *
+                          INITIAL_X_VARIANCE *
+                          canvasSize.width *
+                          0.1,
+                      y: initialYOffset / 2,
+                      vx: (Math.random() - 0.5) * INITIAL_X_VARIANCE,
+                      vy: INITIAL_Y_VELOCITY * (1 + Math.random() * 0.2),
+                    });
+                  }
+                  ballsDroppedRef.current += numToAddThisFrame;
+                }
+              }
+
+              for (const ball of currentActiveBalls) {
+                let { x, y, vx, vy } = ball;
+
+                vy += GRAVITY;
+
+                x += vx;
+                y += vy;
+
+                let bouncedOnPeg = false;
+                const minDist = PEG_RADIUS + BALL_RADIUS;
+                const minDistSq = minDist * minDist;
+
+                for (const peg of pegLayout) {
+                  const dx = x - peg.x;
+                  const dy = y - peg.y;
+                  const distSq = dx * dx + dy * dy;
+
+                  if (distSq < minDistSq && distSq > 1e-9) {
+                    const dist = Math.sqrt(distSq);
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    const dot = vx * nx + vy * ny;
+
+                    if (dot < 0) {
+                      const impulse = -(1 + PEG_RESTITUTION_FACTOR) * dot;
+                      vx += impulse * nx;
+                      vy += impulse * ny;
+
+                      vx *= PEG_TANGENTIAL_DAMPING;
+                      vy *= PEG_TANGENTIAL_DAMPING;
+
+                      const overlap = minDist - dist;
+                      x += nx * overlap * 0.9;
+                      y += ny * overlap * 0.9;
+
+                      bouncedOnPeg = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (x < BALL_RADIUS) {
+                  x = BALL_RADIUS;
+                  vx = Math.abs(vx) * WALL_DAMPING_FACTOR;
+                }
+                if (x > canvasSize.width - BALL_RADIUS) {
+                  x = canvasSize.width - BALL_RADIUS;
+                  vx = -Math.abs(vx) * WALL_DAMPING_FACTOR;
+                }
+
+                const velSq = vx * vx + vy * vy;
+                if (
+                  velSq < MIN_VELOCITY_THRESHOLD_SQ &&
+                  !bouncedOnPeg &&
+                  y > boardHeight * 0.9
+                ) {
+                  vx = 0;
+                  vy = 0;
+                }
+
+                if (y >= boardHeight) {
+                  const binWidth = canvasSize.width / bins.length;
+                  let binIndex = Math.floor(x / binWidth);
+                  binIndex = Math.max(0, Math.min(bins.length - 1, binIndex));
+                  binUpdates[binIndex]++;
+                } else {
+                  nextActiveBalls.push({ ...ball, x, y, vx, vy });
+                }
+              }
+              activeBallsRef.current = nextActiveBalls;
+            }
+
+            setBallsToRender([...activeBallsRef.current]);
+
+            if (binUpdates.some((count) => count > 0)) {
+              setBins((prevBins) => {
+                const nextBins = [...prevBins];
+                binUpdates.forEach((count, index) => {
+                  if (count > 0) nextBins[index] += count;
+                });
+                return nextBins;
+              });
+            }
+
+            if (
+              ballsDroppedRef.current >= config.numBalls &&
+              activeBallsRef.current.length === 0
+            ) {
+              setIsRunning(false);
+              animationFrameRef.current = null;
+            } else {
+              animationFrameRef.current = requestAnimationFrame(simulationStep);
+            }
+          },
+          [
+            isRunning,
+            config,
+            canvasSize,
+            pegLayout,
+            bins.length,
+            boardHeight,
+            initialYOffset,
+          ]
+        );
+
+        useEffect(() => {
+          if (isRunning && !animationFrameRef.current) {
+            lastTimestampRef.current = performance.now();
+            animationFrameRef.current = requestAnimationFrame(simulationStep);
+          }
+          return () => {
+            if (animationFrameRef.current) {
+              cancelAnimationFrame(animationFrameRef.current);
+              animationFrameRef.current = null;
+            }
+          };
+        }, [isRunning, simulationStep]);
+
+        if (!isClient) {
+          return (
+            <div className="flex justify-center items-center min-h-screen">
+              <p className="text-xl text-text-secondary animate-pulse">
+                Loading Simulation...
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex flex-col min-h-screen">
+            <header className="bg-gray-800 text-white p-3 text-center shadow-md sticky top-0 z-10">
+              <h1 className="text-xl sm:text-2xl font-medium tracking-tight flex items-center justify-center gap-2">
+                <span role="img" aria-label="Chart increasing">
+                  📊
+                </span>{" "}
+                Galton Board Simulation{" "}
+                <span role="img" aria-label="Peg">
+                  ⚻
+                </span>
+              </h1>
+            </header>
+
+            <main className="flex-grow flex flex-col md:flex-row p-3 sm:p-4 gap-3 sm:gap-4 items-stretch">
+              <section
+                ref={boardContainerRef}
+                className="flex-grow flex justify-center items-center bg-gray-900 rounded-lg shadow-inner-lg overflow-hidden min-h-[300px] sm:min-h-[400px] p-2"
+                aria-labelledby="board-title"
+              >
+                <h2 id="board-title" className="sr-only">
+                  Simulation Board Visualization
+                </h2>
+                <BoardCanvas
+                  balls={ballsToRender}
+                  bins={bins}
+                  pegLayout={pegLayout}
+                  canvasSize={canvasSize}
+                  histogramMaxHeight={histogramMaxHeight}
+                  boardHeight={boardHeight}
+                />
+              </section>
+
+              <ConfigPanel
+                config={config}
+                onConfigChange={handleConfigChange}
+                onStart={startSimulation}
+                onReset={resetSimulation}
+                isRunning={isRunning}
+                ballsDropped={ballsDroppedRef.current}
+                totalBalls={config.numBalls}
+              />
+            </main>
+
+            <footer className="bg-gray-800 text-center text-xs text-gray-400 p-2 mt-auto">
+              Client-Side SPA using React & Tailwind via CDN | &copy;{" "}
+              {new Date().getFullYear()}
+            </footer>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(
+        <StrictMode>
+          <App />
+        </StrictMode>
+      );
+    </script>
+  </body>
+</html>
